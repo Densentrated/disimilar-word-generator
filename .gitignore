@@ -4,6 +4,7 @@
 *.txt
 viwiki-latest-pages-articles.xml.bz2
 viwiki_clean.txt
+words_and_distance.csv
 
 # Python
 __pycache__/
