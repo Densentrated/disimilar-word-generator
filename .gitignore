@@ -1,10 +1,13 @@
 # Large data files
 *.xml
 *.xml.bz2
-*.txt
 viwiki-latest-pages-articles.xml.bz2
 viwiki_clean.txt
 words_and_distance.csv
+extracted_words.txt
+temp_words_all.txt
+*.sorted
+extracted_words_with_neighbors.txt
 
 # Python
 __pycache__/
