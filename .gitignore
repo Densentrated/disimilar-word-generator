@@ -8,6 +8,7 @@ extracted_words.txt
 temp_words_all.txt
 *.sorted
 extracted_words_with_neighbors.txt
+.venv
 
 # Python
 __pycache__/
