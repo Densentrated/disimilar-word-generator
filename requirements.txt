@@ -1,0 +1,10 @@
+requests
+beautifulsoup4
+pandas
+tqdm
+argostranslate
+sentence-transformers
+numpy
+scipy
+pandas
+argparse
