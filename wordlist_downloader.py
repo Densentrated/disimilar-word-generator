@@ -1,8 +1,10 @@
+import logging
 import os
-import requests
 from pathlib import Path
 from typing import Optional
-import logging
+
+import requests
+
 
 class WordListDownloader:
     def __init__(self, language_code: str, cache_dir: str = "./wordlist_cache"):
@@ -12,7 +14,7 @@ class WordListDownloader:
 
         self.language_code = language_code
         self.cache_dir = cache_dir
-        os.makedirs(self.cache_dir, exist_ok = True)
+        os.makedirs(self.cache_dir, exist_ok=True)
 
     def download(self):
         """
@@ -28,7 +30,9 @@ class WordListDownloader:
             print(f"Downloaded successfully: {dest_path}")
             return dest_path
         else:
-            print(f"failed to download wordlist for {self.language_code}: {response.status_code}")
+            print(
+                f"failed to download wordlist for {self.language_code}: {response.status_code}"
+            )
             return None
 
 
