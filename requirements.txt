@@ -1,0 +1,18 @@
+# Core dependencies
+pandas>=1.3
+numpy>=1.21
+sentence-transformers>=2.2.2
+torch>=1.12.0
+scikit-learn>=1.0
+
+# Test / dev
+pytest>=6.0
+
+# Optional / recommended for large-scale nearest-neighbor search:
+# - Faiss (CPU) for fast ANN (install only if desired and available for your platform)
+#   pip name: faiss-cpu
+#faiss-cpu>=1.7.2
+
+# Alternative ANN libraries (optional):
+#hnswlib>=0.5.2
+#annoy>=1.17.0
