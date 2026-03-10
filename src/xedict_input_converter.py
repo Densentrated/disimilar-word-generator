@@ -25,7 +25,7 @@ class XedictInputConverter:
                 print(f"{word} : {definition}")
 
         df = pd.DataFrame(
-            {"From-Language word": words, "To-Language definitions": definitions}
+            {"From-Language word": words, "To-Language definition": definitions}
         )
 
         return input_format.InputFormat(df)

@@ -72,7 +72,7 @@ class KaikkiJsonInputConverter:
                 definitions.append(definition)
 
         df = pd.DataFrame(
-            {"From-Language word": words, "To-Language definitions": definitions}
+            {"From-Language word": words, "To-Language definition": definitions}
         )
         return df
 

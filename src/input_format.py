@@ -3,6 +3,7 @@
 Provides the `InputFormat` class which encapsulates a pandas
 DataFrame with two columns: `word` and `definition`.
 """
+
 from typing import Iterable, Optional, Tuple
 
 import pandas as pd
@@ -17,7 +18,7 @@ class InputFormat:
         df = obj.to_dataframe()
     """
 
-    REQUIRED_COLUMNS = ["From-Language word", "To-Language definitions"]
+    REQUIRED_COLUMNS = ["From-Language word", "To-Language definition"]
 
     def __init__(self, df: Optional[pd.DataFrame] = None) -> None:
         if df is None:
