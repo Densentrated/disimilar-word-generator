@@ -14,6 +14,10 @@ This module provides:
 """
 
 
+# The functions below are used to compute ARBITRARY things, later in the file,
+# we will put functions that use these in order to compute SPECIFIC things
+
+
 def embed_column(
     data: pd.DataFrame,
     col_name: str,
@@ -129,3 +133,24 @@ def add_cosine_distance(
     out = df.copy()
     out[out_col] = distances.astype(float).tolist()
     return out
+
+
+def word_length_of_string_column(
+    df: pd.DataFrame, column_name: str, appended_column_name: str
+):
+    """Appends a column to the dataframe giving the lenght of the strings in that dataframe"""
+    if column_name not in df:
+        raise ValueError(f"{column_name} not in provided dataframe")
+
+    if appended_column_name in df.columns:
+        raise ValueError(
+            f"Appended column: {appended_column_name} is already in dataframe"
+        )
+
+    out = df.copy()
+
+    series = out[column_name].fillna("").astype(str)
+
+    out[appended_column_name] = series.str.split().apply(len)
+    return out
+
