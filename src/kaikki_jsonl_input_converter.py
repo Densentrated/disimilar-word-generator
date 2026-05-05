@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import pandas as pd
 
-import input_format
+import input_format as input_format
 
 logger = logging.getLogger(__name__)
 

@@ -2,6 +2,7 @@ from typing import Optional
 
 import pandas as pd
 
+from cognate_similarity_processor import compute_cognate_similarity
 from words_processor import (
     _pairwise_cosine_sims,
     _to_matrix,
@@ -15,6 +16,7 @@ __all__ = [
     "add_word_count_column",
     "embed_column",
     "add_orthographic_similarity",
+    "add_cognate_similarity",
 ]
 
 
@@ -171,6 +173,57 @@ def add_orthographic_similarity(
         lambda row: orthographic_similarity(
             str(row[text_col_a]).lower() if row[text_col_a] else "",
             str(row[text_col_b]).lower() if row[text_col_b] else "",
+        ),
+        axis=1,
+    )
+    return out
+
+
+def add_cognate_similarity(
+    df: pd.DataFrame,
+    ipa_col_a: str,
+    ipa_col_b: str,
+    output_column: Optional[str] = None,
+    sound_class_model: str = "sca",
+) -> pd.DataFrame:
+    """Compute cognate similarity between two IPA columns (row-wise) and append result.
+
+    Uses the cognate_similarity_processor.compute_cognate_similarity function to measure
+    phonological similarity between words in IPA notation using linguistically informed
+    sound class alignment.
+
+    Cognate similarity ranges from 0 (completely different) to 1 (identical).
+
+    Parameters:
+        df: Input DataFrame.
+        ipa_col_a: Name of the first IPA text column.
+        ipa_col_b: Name of the second IPA text column.
+        output_column: Name of the output column (defaults to "cognate_similarity").
+        sound_class_model: Sound class model to use for alignment (defaults to "sca").
+                          Other options: "dolgo", "asjp".
+
+    Returns:
+        A shallow copy of `df` with the cognate similarity column appended.
+
+    Raises:
+        ValueError: if either IPA column is not in the DataFrame.
+        ValueError: if output_column already exists in the DataFrame.
+    """
+    if ipa_col_a not in df.columns or ipa_col_b not in df.columns:
+        raise ValueError(f"IPA columns not found in DataFrame")
+
+    if output_column is None:
+        output_column = "cognate_similarity"
+
+    if output_column in df.columns:
+        raise ValueError(f"Output column '{output_column}' already exists in DataFrame")
+
+    out = df.copy()
+    out[output_column] = out.apply(
+        lambda row: compute_cognate_similarity(
+            str(row[ipa_col_a]) if row[ipa_col_a] else "",
+            str(row[ipa_col_b]) if row[ipa_col_b] else "",
+            sound_class_model=sound_class_model,
         ),
         axis=1,
     )

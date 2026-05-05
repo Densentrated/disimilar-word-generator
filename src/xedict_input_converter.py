@@ -1,6 +1,6 @@
 import pandas as pd
 
-import input_format
+import input_format as input_format
 
 
 class XedictInputConverter:
