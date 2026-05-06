@@ -7,6 +7,7 @@ scikit-learn>=1.0
 transformers>=4.30.0
 scipy>=1.9
 tqdm>=4.64
+lingpy>=2.6.0
 
 # Test / dev
 pytest>=6.0
