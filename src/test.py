@@ -1,7 +1,7 @@
 import os
 import pickle
 import sys
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -10,6 +10,52 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import dataframe_processor as dfp
 import kaikki_jsonl_input_converter as kjic
+from concreteness_predictor import ConcretenessPredictor
+from input_format import InputFormat
+
+# ---------------------------------------------------------------------------
+# Shared concreteness predictor (loaded from disk or trained on first access)
+# ---------------------------------------------------------------------------
+
+_PREDICTOR_SAVE_PATH = ".data/concreteness_predictor"
+_predictor: Optional[ConcretenessPredictor] = None
+
+
+def _get_predictor() -> ConcretenessPredictor:
+    """Return the module-level predictor.
+
+    Loads from ``_PREDICTOR_SAVE_PATH`` if a saved model exists there;
+    otherwise trains from scratch on the English concreteness norms and
+    saves the result so future runs skip training.
+    """
+    global _predictor
+    if _predictor is not None:
+        return _predictor
+
+    if os.path.isdir(_PREDICTOR_SAVE_PATH):
+        print(f"Loading concreteness predictor from {_PREDICTOR_SAVE_PATH} ...")
+        _predictor = ConcretenessPredictor.load(_PREDICTOR_SAVE_PATH)
+        print("Predictor loaded.")
+    else:
+        print("No saved predictor found — training on English concreteness norms.")
+        print("(This takes ~10–30 min on CPU; much faster on GPU.)")
+        _predictor = ConcretenessPredictor()
+        _predictor.train(verbose=True)
+        os.makedirs(os.path.dirname(_PREDICTOR_SAVE_PATH) or ".", exist_ok=True)
+        _predictor.save(_PREDICTOR_SAVE_PATH)
+        print(f"Predictor saved to {_PREDICTOR_SAVE_PATH}")
+
+    return _predictor
+
+
+def _add_concreteness_column(df: pd.DataFrame) -> pd.DataFrame:
+    """Predict concreteness for every From-Language word and add the column."""
+    predictor = _get_predictor()
+    fmt = InputFormat(df)
+    scores_df = predictor.predict(fmt)
+    out = df.copy()
+    out["concreteness"] = scores_df["concreteness"].values
+    return out
 
 
 def create_sample_data() -> pd.DataFrame:
@@ -112,6 +158,7 @@ def process_first_n(input_obj: Any, n: int = 10) -> pd.DataFrame:
 
 
 def process_sample_data(n: int = 10) -> pd.DataFrame:
+
     """
     Create sample data and process it with feature computations.
 
@@ -162,6 +209,9 @@ def process_sample_data(n: int = 10) -> pd.DataFrame:
         sound_class_model="sca",
     )
 
+    # Add concreteness score for each From-Language word (zero-shot via XLM-RoBERTa)
+    df_first = _add_concreteness_column(df_first)
+
     return df_first
 
 
@@ -196,6 +246,7 @@ def main() -> None:
         "definition_word_count",
         "orthographic_similarity",
         "cognate_similarity",
+        "concreteness",
     ]
 
     # Only show columns that exist
@@ -218,6 +269,9 @@ def main() -> None:
     )
     print(
         f"  - cognate_similarity: Phonological similarity using sound classes (0-1, higher is more similar)"
+    )
+    print(
+        f"  - concreteness: Predicted concreteness of the From-Language word (1=abstract, 5=concrete)"
     )
     print()
 
@@ -278,6 +332,9 @@ def test_vietnamese_data() -> None:
         sound_class_model="sca",
     )
 
+    # Add concreteness score for each Vietnamese word (zero-shot via XLM-RoBERTa)
+    df_first = _add_concreteness_column(df_first)
+
     data_with_features = df_first
 
     pkl_path: str = ".data/vietnamese_data_with_features.pkl"
@@ -304,6 +361,7 @@ def test_vietnamese_data() -> None:
         "definition_word_count",
         "orthographic_similarity",
         "cognate_similarity",
+        "concreteness",
     ]
 
     # Only show columns that exist
@@ -326,6 +384,9 @@ def test_vietnamese_data() -> None:
     )
     print(
         f"  - cognate_similarity: Phonological similarity using sound classes (0-1, higher is more similar)"
+    )
+    print(
+        f"  - concreteness: Predicted concreteness of the Vietnamese word (1=abstract, 5=concrete)"
     )
     print()
 
