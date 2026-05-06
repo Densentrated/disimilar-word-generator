@@ -17,6 +17,7 @@ Steps:
 
 import argparse
 import os
+import re
 import sys
 
 import pandas as pd
@@ -45,6 +46,23 @@ def _get_predictor(model_path: str) -> ConcretenessPredictor:
         predictor.save(model_path)
         print(f"Predictor saved to {model_path}")
     return predictor
+
+
+_ALT_SPELLING_PATTERN = re.compile(
+    r"\b(alternative|variant|obsolete|archaic|eye dialect|misspelling|alternate)\s+"
+    r"(spelling|form|capitalization|romanization|transcription)\s+of\b",
+    re.IGNORECASE,
+)
+
+
+def _drop_alternative_spellings(df: pd.DataFrame) -> pd.DataFrame:
+    mask = df["To-Language definition"].fillna("").astype(str).apply(
+        lambda d: bool(_ALT_SPELLING_PATTERN.search(d))
+    )
+    dropped = mask.sum()
+    if dropped:
+        print(f"Removed {dropped} alternative-spelling entries.")
+    return df[~mask].reset_index(drop=True)
 
 
 def _minmax_normalize(series: pd.Series) -> pd.Series:
@@ -76,51 +94,68 @@ Example: --invert-orthographic --invert-cognate rewards words that look/sound fo
     )
     parser.add_argument("input_file", help="Path to the Kaikki JSONL input file.")
     parser.add_argument(
-        "--output", default="output.csv",
+        "--output",
+        default="output.csv",
         help="Output CSV path (default: output.csv).",
     )
     parser.add_argument(
-        "--model-path", default=_DEFAULT_MODEL_PATH,
+        "--model-path",
+        default=_DEFAULT_MODEL_PATH,
         help=f"Directory for the concreteness predictor (default: {_DEFAULT_MODEL_PATH}).",
     )
     parser.add_argument(
-        "--weight-cosine", type=float, default=1.0,
+        "--weight-cosine",
+        type=float,
+        default=1.0,
         help="Weight for cosine_distance (default: 1.0).",
     )
     parser.add_argument(
-        "--weight-word-count", type=float, default=1.0,
+        "--weight-word-count",
+        type=float,
+        default=1.0,
         help="Weight for definition_word_count (default: 1.0).",
     )
     parser.add_argument(
-        "--weight-orthographic", type=float, default=1.0,
+        "--weight-orthographic",
+        type=float,
+        default=1.0,
         help="Weight for orthographic_similarity (default: 1.0).",
     )
     parser.add_argument(
-        "--weight-cognate", type=float, default=1.0,
+        "--weight-cognate",
+        type=float,
+        default=1.0,
         help="Weight for cognate_similarity (default: 1.0).",
     )
     parser.add_argument(
-        "--weight-concreteness", type=float, default=1.0,
+        "--weight-concreteness",
+        type=float,
+        default=1.0,
         help="Weight for concreteness (default: 1.0).",
     )
     parser.add_argument(
-        "--invert-cosine", action="store_true",
+        "--invert-cosine",
+        action="store_true",
         help="Invert cosine_distance before scoring.",
     )
     parser.add_argument(
-        "--invert-word-count", action="store_true",
+        "--invert-word-count",
+        action="store_true",
         help="Invert definition_word_count before scoring.",
     )
     parser.add_argument(
-        "--invert-orthographic", action="store_true",
+        "--invert-orthographic",
+        action="store_true",
         help="Invert orthographic_similarity before scoring (rewards foreign-looking words).",
     )
     parser.add_argument(
-        "--invert-cognate", action="store_true",
+        "--invert-cognate",
+        action="store_true",
         help="Invert cognate_similarity before scoring (rewards foreign-sounding words).",
     )
     parser.add_argument(
-        "--invert-concreteness", action="store_true",
+        "--invert-concreteness",
+        action="store_true",
         help="Invert concreteness before scoring (rewards abstract words).",
     )
 
@@ -133,13 +168,19 @@ Example: --invert-orthographic --invert-cognate rewards words that look/sound fo
     df = input_obj.to_dataframe()
     print(f"Loaded {len(df)} rows.")
 
-    # 2. Embed word and definition columns
+    # 2. Remove alternative-spelling entries
+    df = _drop_alternative_spellings(df)
+    print(f"{len(df)} rows after filtering.")
+
+    # 3. Embed word and definition columns
     print("Embedding words ...")
     df = dfp.embed_column(df, "From-Language word", "From-Language word Embedding")
     print("Embedding definitions ...")
-    df = dfp.embed_column(df, "To-Language definition", "To-Language definition Embedding")
+    df = dfp.embed_column(
+        df, "To-Language definition", "To-Language definition Embedding"
+    )
 
-    # 3. Cosine distance between word and definition embeddings
+    # 4. Cosine distance between word and definition embeddings
     print("Computing cosine distance ...")
     df = dfp.add_cosine_distance(
         df,
@@ -148,13 +189,13 @@ Example: --invert-orthographic --invert-cognate rewards words that look/sound fo
         out_col="cosine_distance",
     )
 
-    # 4. Word count of the definition
+    # 5. Word count of the definition
     print("Computing definition word count ...")
     df = dfp.add_word_count_column(
         df, "To-Language definition", output_column="definition_word_count"
     )
 
-    # 5. Orthographic similarity between word and definition
+    # 6. Orthographic similarity between word and definition
     print("Computing orthographic similarity ...")
     df = dfp.add_orthographic_similarity(
         df,
@@ -163,7 +204,7 @@ Example: --invert-orthographic --invert-cognate rewards words that look/sound fo
         output_column="orthographic_similarity",
     )
 
-    # 6. Cognate similarity between word and definition
+    # 7. Cognate similarity between word and definition
     print("Computing cognate similarity ...")
     df = dfp.add_cognate_similarity(
         df,
@@ -173,14 +214,14 @@ Example: --invert-orthographic --invert-cognate rewards words that look/sound fo
         sound_class_model="sca",
     )
 
-    # 7. Concreteness of each word
+    # 9. Concreteness of each word
     print("Predicting concreteness ...")
     predictor = _get_predictor(args.model_path)
     fmt = InputFormat(df)
     scores_df = predictor.predict(fmt)
     df["concreteness"] = scores_df["concreteness"].values
 
-    # 8. Normalized weighted score
+    # 10. Normalized weighted score
     weights = {
         "cosine_distance": args.weight_cosine,
         "definition_word_count": args.weight_word_count,
