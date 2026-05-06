@@ -20,6 +20,11 @@ python src/pipeline.py <input_file> [options]
 | `--weight-orthographic` | Weight for `orthographic_similarity` (default: `1.0`) |
 | `--weight-cognate` | Weight for `cognate_similarity` (default: `1.0`) |
 | `--weight-concreteness` | Weight for `concreteness` (default: `1.0`) |
+| `--invert-cosine` | Flip `cosine_distance` before scoring (`1 - normalized`) |
+| `--invert-word-count` | Flip `definition_word_count` before scoring |
+| `--invert-orthographic` | Flip `orthographic_similarity` before scoring (rewards foreign-looking words) |
+| `--invert-cognate` | Flip `cognate_similarity` before scoring (rewards foreign-sounding words) |
+| `--invert-concreteness` | Flip `concreteness` before scoring (rewards abstract words) |
 
 ### Examples
 
@@ -37,6 +42,19 @@ python src/pipeline.py kaikki.org-dictionary-Vietnamese.jsonl \
   --weight-orthographic 1.0 \
   --weight-cognate 1.0 \
   --weight-concreteness 1.5
+```
+
+Find words that are semantically dissimilar from English and look/sound foreign (not native to English):
+```bash
+python src/pipeline.py kaikki.org-dictionary-Vietnamese.jsonl \
+  --output results.csv \
+  --weight-cosine 3.0 \
+  --weight-word-count 0.0 \
+  --weight-orthographic 1.0 \
+  --weight-cognate 1.0 \
+  --weight-concreteness 1.0 \
+  --invert-orthographic \
+  --invert-cognate
 ```
 
 ## Output

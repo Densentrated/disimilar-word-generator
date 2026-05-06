@@ -69,6 +69,9 @@ Metric directions (higher raw value means ...):
   orthographic_similarity more orthographically similar  (higher = more similar)
   cognate_similarity      more phonologically similar    (higher = more similar)
   concreteness            more concrete (1=abstract, 5=concrete)
+
+Use --invert-<metric> to flip a metric before scoring (uses 1 - normalized_value).
+Example: --invert-orthographic --invert-cognate rewards words that look/sound foreign.
 """,
     )
     parser.add_argument("input_file", help="Path to the Kaikki JSONL input file.")
@@ -99,6 +102,26 @@ Metric directions (higher raw value means ...):
     parser.add_argument(
         "--weight-concreteness", type=float, default=1.0,
         help="Weight for concreteness (default: 1.0).",
+    )
+    parser.add_argument(
+        "--invert-cosine", action="store_true",
+        help="Invert cosine_distance before scoring.",
+    )
+    parser.add_argument(
+        "--invert-word-count", action="store_true",
+        help="Invert definition_word_count before scoring.",
+    )
+    parser.add_argument(
+        "--invert-orthographic", action="store_true",
+        help="Invert orthographic_similarity before scoring (rewards foreign-looking words).",
+    )
+    parser.add_argument(
+        "--invert-cognate", action="store_true",
+        help="Invert cognate_similarity before scoring (rewards foreign-sounding words).",
+    )
+    parser.add_argument(
+        "--invert-concreteness", action="store_true",
+        help="Invert concreteness before scoring (rewards abstract words).",
     )
 
     args = parser.parse_args()
@@ -165,6 +188,13 @@ Metric directions (higher raw value means ...):
         "cognate_similarity": args.weight_cognate,
         "concreteness": args.weight_concreteness,
     }
+    inverted = {
+        "cosine_distance": args.invert_cosine,
+        "definition_word_count": args.invert_word_count,
+        "orthographic_similarity": args.invert_orthographic,
+        "cognate_similarity": args.invert_cognate,
+        "concreteness": args.invert_concreteness,
+    }
 
     total_weight = sum(weights.values())
     if total_weight == 0:
@@ -172,7 +202,10 @@ Metric directions (higher raw value means ...):
     else:
         score = pd.Series(0.0, index=df.index)
         for col, w in weights.items():
-            score += w * _minmax_normalize(df[col].astype(float))
+            normalized = _minmax_normalize(df[col].astype(float))
+            if inverted[col]:
+                normalized = 1.0 - normalized
+            score += w * normalized
         df["normalized_score"] = score / total_weight
 
     # Drop embedding columns, sort by score descending
