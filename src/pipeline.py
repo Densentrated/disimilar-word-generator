@@ -55,13 +55,14 @@ _ALT_SPELLING_PATTERN = re.compile(
 )
 
 
-def _drop_alternative_spellings(df: pd.DataFrame) -> pd.DataFrame:
-    mask = df["To-Language definition"].fillna("").astype(str).apply(
-        lambda d: bool(_ALT_SPELLING_PATTERN.search(d))
-    )
+def _drop_unusable(df: pd.DataFrame) -> pd.DataFrame:
+    defs = df["To-Language definition"].fillna("").astype(str)
+    alt_mask = defs.apply(lambda d: bool(_ALT_SPELLING_PATTERN.search(d)))
+    failed_mask = defs.str.startswith("failed:")
+    mask = alt_mask | failed_mask
     dropped = mask.sum()
     if dropped:
-        print(f"Removed {dropped} alternative-spelling entries.")
+        print(f"Removed {dropped} unusable entries ({alt_mask.sum()} alternative spellings, {failed_mask.sum()} parse failures).")
     return df[~mask].reset_index(drop=True)
 
 
@@ -169,7 +170,7 @@ Example: --invert-orthographic --invert-cognate rewards words that look/sound fo
     print(f"Loaded {len(df)} rows.")
 
     # 2. Remove alternative-spelling entries
-    df = _drop_alternative_spellings(df)
+    df = _drop_unusable(df)
     print(f"{len(df)} rows after filtering.")
 
     # 3. Embed word and definition columns

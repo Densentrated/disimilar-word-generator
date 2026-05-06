@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 import pandas as pd
@@ -17,6 +18,8 @@ __all__ = [
     "embed_column",
     "add_orthographic_similarity",
     "add_cognate_similarity",
+    "filter_alternative_spellings",
+    "filter_failed_definitions",
 ]
 
 
