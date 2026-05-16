@@ -12,13 +12,13 @@ Steps:
   2. Use user-provided row indices as positive examples (words matching your criteria)
   3. Extract features from the top N rows (default 200) for training
   4. Train a binary classifier on those rows
-  5. Score ALL words in the dataset using the trained classifier
-  6. Output a ranked CSV of words sorted by similarity to your examples
+  5. Classify ALL words in the dataset as positive or negative
+  6. Output all positive classifications to CSV (sorted by confidence)
 
 Example:
     python pipeline_part2.py output.csv --examples 0 5 12 42
     # Uses rows 0, 5, 12, 42 as positive examples from top 200 rows
-    # Finds similar words across entire dataset
+    # Classifies entire dataset, outputs all positive words
 """
 
 import argparse
@@ -137,22 +137,21 @@ def score_words(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Find words similar to user-provided examples using ML.",
+        description="Classify words and find all that are similar to user-provided examples.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Find words similar to rows 0, 5, and 12
-  # Trains on top 200 rows, scores entire dataset
+  # Classify all words, output only positive classifications
   python pipeline_part2.py output.csv --examples 0 5 12
 
-  # Use SVM classifier instead of logistic regression
+  # Use SVM classifier (often more accurate)
   python pipeline_part2.py output.csv --examples 10 20 30 --model svm
 
-  # Use random forest and output to custom file
-  python pipeline_part2.py output.csv --examples 1 2 3 --output similar_words.csv --model random_forest
+  # Train on top 500 words
+  python pipeline_part2.py output.csv --examples 1 2 3 --train-size 500 --model random_forest
 
-  # Train on top 500 words instead of default 200
-  python pipeline_part2.py output.csv --examples 0 5 10 --train-size 500
+  # Limit positive results to top 100 (by confidence score)
+  python pipeline_part2.py output.csv --examples 0 5 --top-n 100
 """,
     )
     parser.add_argument("input_csv", help="Path to the CSV from pipeline.py")
@@ -184,7 +183,7 @@ Examples:
         "--top-n",
         type=int,
         default=None,
-        help="Only output top N similar words. If not specified, outputs all words.",
+        help="Only output top N positive classifications. If not specified, outputs all positive words.",
     )
 
     args = parser.parse_args()
@@ -211,7 +210,7 @@ Examples:
         definition = df.iloc[idx]["To-Language definition"]
         print(f"  [{idx}] {word}: {definition}")
 
-    # Step 3: Split data - train on top N rows, score all
+    # Step 3: Split data - train on top N rows, classify all
     print(f"\nTraining on top {args.train_size} rows...")
     df_train = df.head(args.train_size).copy()
     df_all = df.copy()
@@ -250,20 +249,40 @@ Examples:
     clf, scaler = train_classifier(X_train, y_train, model_type=args.model)
     print("Classifier trained.")
 
-    # Step 7: Score ALL words (including those outside training set)
-    print(f"Scoring all {len(df_all)} words in dataset...")
+    # Step 7: Classify ALL words (including those outside training set)
+    print(f"\nClassifying all {len(df_all)} words in dataset...")
     similarity_scores = score_words(X_all, clf, scaler)
+    predictions = clf.predict(scaler.transform(X_all))
 
-    # Step 8: Add scores to DataFrame and sort
     df_all["similarity_score"] = similarity_scores
-    df_sorted = df_all.sort_values("similarity_score", ascending=False).reset_index(
-        drop=True
+    df_all["prediction"] = predictions
+
+    # Step 8: Filter to only positive classifications
+    df_positive = df_all[df_all["prediction"] == 1].copy()
+    df_positive = df_positive.sort_values(
+        "similarity_score", ascending=False
+    ).reset_index(drop=True)
+
+    n_positive_found = len(df_positive)
+    n_total = len(df_all)
+    n_negative_found = n_total - n_positive_found
+
+    print(
+        f"Classification complete: {n_positive_found} positive, {n_negative_found} negative out of {n_total} total"
     )
 
-    # Step 9: Optionally limit to top N
+    if n_positive_found == 0:
+        print("\nWarning: No words classified as positive. Try:")
+        print("  - Using different examples")
+        print("  - Increasing --train-size")
+        print("  - Using a different classifier (--model svm or --model random_forest)")
+        sys.exit(0)
+
+    # Step 9: Optionally limit to top N (if specified)
     if args.top_n is not None:
-        df_sorted = df_sorted.head(args.top_n)
-        print(f"Keeping top {args.top_n} similar words.")
+        if args.top_n < len(df_positive):
+            print(f"Limiting output to top {args.top_n} positive words.")
+            df_positive = df_positive.head(args.top_n)
 
     # Step 10: Output results
     output_columns = [
@@ -276,19 +295,19 @@ Examples:
         "cognate_similarity",
     ]
     # Only include columns that exist
-    available_columns = [col for col in output_columns if col in df_sorted.columns]
+    available_columns = [col for col in output_columns if col in df_positive.columns]
 
-    df_sorted[available_columns].to_csv(args.output, index=False)
+    df_positive[available_columns].to_csv(args.output, index=False)
     print(f"\nResults saved to {args.output}")
-    print(f"Found {len(df_sorted)} similar words (sorted by similarity score)\n")
+    print(f"Saved {len(df_positive)} positive words to output\n")
 
     # Print top 10 results
-    print("Top 10 results:")
+    print("Top 10 positive results:")
     print("-" * 120)
     pd.set_option("display.max_columns", None)
     pd.set_option("display.max_colwidth", 40)
     pd.set_option("display.width", None)
-    print(df_sorted[available_columns].head(10).to_string(index=True))
+    print(df_positive[available_columns].head(10).to_string(index=True))
     print("-" * 120)
 
 

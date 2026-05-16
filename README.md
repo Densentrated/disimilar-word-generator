@@ -109,13 +109,10 @@ This script trains a binary classifier on your example words and finds other wor
 ### How It Works
 
 1. You provide 2-5 example words (by row index from the pipeline.py output)
-2. The script trains on the **top N rows** (default 200) - uses this clean, well-ranked subset for training
-3. Your examples must be within this training set (rows 0 to N-1)
-4. A machine learning classifier learns what makes your examples special
-5. The trained classifier scores **all words** in the entire dataset (beyond top N)
-6. Outputs a ranked CSV sorted by similarity score, including words throughout the full dataset
-
-**Why this approach?** The top-ranked words from `pipeline.py` are cleaner and have better-defined features, making them ideal training data. But you can still discover similar words anywhere in the dataset.
+2. The script trains on the **top N rows** (default 200) using your examples as positive
+3. A machine learning classifier learns what makes those examples special
+4. The classifier **classifies every word** in the entire dataset as positive or negative
+5. Outputs **all positive classifications** to CSV, sorted by confidence score
 
 ### Examples
 
@@ -182,7 +179,8 @@ python src/pipeline_part2.py vietnamese_scores.csv \
   --examples 0 5 12 \
   --model random_forest \
   --top-n 100 \
-  --output category_words.csv
+  --output category_words.csv \
+  --train-size 100
 ```
 
 ### Step 4: Refine and repeat
