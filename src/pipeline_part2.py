@@ -10,15 +10,15 @@ Usage:
 Steps:
   1. Load the CSV output from pipeline.py
   2. Use user-provided row indices as positive examples (words matching your criteria)
-  3. Extract features from those examples
-  4. Train a binary classifier (e.g., logistic regression, SVM, or random forest)
-  5. Score all words in the dataset
+  3. Extract features from the top N rows (default 200) for training
+  4. Train a binary classifier on those rows
+  5. Score ALL words in the dataset using the trained classifier
   6. Output a ranked CSV of words sorted by similarity to your examples
 
 Example:
     python pipeline_part2.py output.csv --examples 0 5 12 42
-    # Uses rows 0, 5, 12, 42 as positive examples
-    # Finds other words similar to those
+    # Uses rows 0, 5, 12, 42 as positive examples from top 200 rows
+    # Finds similar words across entire dataset
 """
 
 import argparse
@@ -82,7 +82,7 @@ def train_classifier(
     X: np.ndarray,
     y: np.ndarray,
     model_type: str = "logistic_regression",
-) -> object:
+) -> tuple:
     """Train a binary classifier on the features and labels.
 
     Parameters:
@@ -92,7 +92,7 @@ def train_classifier(
                    Options: "logistic_regression", "svm", "random_forest"
 
     Returns:
-        Trained classifier object
+        Tuple of (classifier, scaler)
     """
     # Scale features for better ML performance
     scaler = StandardScaler()
@@ -141,7 +141,8 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Find words similar to rows 0, 5, and 12 (indices from the CSV)
+  # Find words similar to rows 0, 5, and 12
+  # Trains on top 200 rows, scores entire dataset
   python pipeline_part2.py output.csv --examples 0 5 12
 
   # Use SVM classifier instead of logistic regression
@@ -149,6 +150,9 @@ Examples:
 
   # Use random forest and output to custom file
   python pipeline_part2.py output.csv --examples 1 2 3 --output similar_words.csv --model random_forest
+
+  # Train on top 500 words instead of default 200
+  python pipeline_part2.py output.csv --examples 0 5 10 --train-size 500
 """,
     )
     parser.add_argument("input_csv", help="Path to the CSV from pipeline.py")
@@ -169,6 +173,12 @@ Examples:
         choices=["logistic_regression", "svm", "random_forest"],
         default="logistic_regression",
         help="ML model to use (default: logistic_regression)",
+    )
+    parser.add_argument(
+        "--train-size",
+        type=int,
+        default=200,
+        help="Number of top-ranked words to use for training (default: 200)",
     )
     parser.add_argument(
         "--top-n",
@@ -201,34 +211,61 @@ Examples:
         definition = df.iloc[idx]["To-Language definition"]
         print(f"  [{idx}] {word}: {definition}")
 
-    # Step 3: Create feature matrix
-    print("\nExtracting features...")
-    X = create_feature_matrix(df)
+    # Step 3: Split data - train on top N rows, score all
+    print(f"\nTraining on top {args.train_size} rows...")
+    df_train = df.head(args.train_size).copy()
+    df_all = df.copy()
 
-    # Step 4: Create binary labels (1 for positive examples, 0 otherwise)
-    y = np.zeros(len(df), dtype=int)
-    y[example_indices] = 1
-    print(f"Training set: {y.sum()} positive examples, {len(y) - y.sum()} negative examples")
+    # Validate that examples are within training set
+    examples_in_train = [i for i in example_indices if i < args.train_size]
+    examples_not_in_train = [i for i in example_indices if i >= args.train_size]
+    if examples_not_in_train:
+        print(
+            f"Warning: Examples {examples_not_in_train} are outside training set (rows 0-{args.train_size - 1})."
+        )
+        if not examples_in_train:
+            print(
+                f"Error: No examples in training set. Please provide examples from rows 0-{args.train_size - 1}."
+            )
+            sys.exit(1)
+        print(f"Using only examples {examples_in_train} for training.")
+        example_indices = examples_in_train
 
-    # Step 5: Train classifier
-    print(f"\nTraining {args.model} classifier...")
-    clf, scaler = train_classifier(X, y, model_type=args.model)
+    # Step 4: Create feature matrices
+    print("Extracting features...")
+    X_train = create_feature_matrix(df_train)
+    X_all = create_feature_matrix(df_all)
+
+    # Step 5: Create binary labels for training set (1 for positive examples, 0 otherwise)
+    y_train = np.zeros(len(df_train), dtype=int)
+    y_train[example_indices] = 1
+    n_positive = y_train.sum()
+    n_negative = len(y_train) - n_positive
+    print(
+        f"Training set: {n_positive} positive example(s), {n_negative} negative examples"
+    )
+
+    # Step 6: Train classifier on training set only
+    print(f"\nTraining {args.model} classifier on top {args.train_size} rows...")
+    clf, scaler = train_classifier(X_train, y_train, model_type=args.model)
     print("Classifier trained.")
 
-    # Step 6: Score all words
-    print("Scoring all words...")
-    similarity_scores = score_words(X, clf, scaler)
+    # Step 7: Score ALL words (including those outside training set)
+    print(f"Scoring all {len(df_all)} words in dataset...")
+    similarity_scores = score_words(X_all, clf, scaler)
 
-    # Step 7: Add scores to DataFrame and sort
-    df["similarity_score"] = similarity_scores
-    df_sorted = df.sort_values("similarity_score", ascending=False).reset_index(drop=True)
+    # Step 8: Add scores to DataFrame and sort
+    df_all["similarity_score"] = similarity_scores
+    df_sorted = df_all.sort_values("similarity_score", ascending=False).reset_index(
+        drop=True
+    )
 
-    # Step 8: Optionally limit to top N
+    # Step 9: Optionally limit to top N
     if args.top_n is not None:
         df_sorted = df_sorted.head(args.top_n)
         print(f"Keeping top {args.top_n} similar words.")
 
-    # Step 9: Output results
+    # Step 10: Output results
     output_columns = [
         "From-Language word",
         "To-Language definition",

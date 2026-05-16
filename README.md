@@ -100,37 +100,41 @@ This script trains a binary classifier on your example words and finds other wor
 | Argument | Description |
 |---|---|
 | `input_csv` | Path to the CSV output from `pipeline.py` |
-| `--examples` | Space-separated list of row indices (0-based) of example words (required) |
+| `--examples` | Space-separated list of row indices (0-based) of example words (required). Must be within `--train-size`. |
 | `--output` | Output CSV path (default: `similar_words.csv`) |
 | `--model` | ML classifier to use: `logistic_regression` (default), `svm`, or `random_forest` |
+| `--train-size` | Number of top-ranked words to use for training (default: 200). Your examples must be in rows 0 to `train-size-1`. |
 | `--top-n` | Only output top N most similar words (optional) |
 
 ### How It Works
 
 1. You provide 2-5 example words (by row index from the pipeline.py output)
-2. The script extracts features from those examples (similarity metrics, concreteness, etc.)
-3. Trains a machine learning classifier to learn what makes those words special
-4. Scores all other words based on how similar they are to your examples
-5. Outputs a ranked CSV sorted by similarity score
+2. The script trains on the **top N rows** (default 200) - uses this clean, well-ranked subset for training
+3. Your examples must be within this training set (rows 0 to N-1)
+4. A machine learning classifier learns what makes your examples special
+5. The trained classifier scores **all words** in the entire dataset (beyond top N)
+6. Outputs a ranked CSV sorted by similarity score, including words throughout the full dataset
+
+**Why this approach?** The top-ranked words from `pipeline.py` are cleaner and have better-defined features, making them ideal training data. But you can still discover similar words anywhere in the dataset.
 
 ### Examples
 
-Find words similar to rows 0, 5, and 12:
+Find words similar to rows 0, 5, and 12 (trains on top 200):
 ```bash
 python src/pipeline_part2.py output.csv --examples 0 5 12
 ```
 
-Use SVM classifier (often more accurate) and get top 50 results:
+Use SVM classifier and get top 50 results:
 ```bash
 python src/pipeline_part2.py output.csv --examples 0 5 12 --model svm --top-n 50
 ```
 
-Use random forest classifier and save to custom file:
+Train on top 500 words, use random forest:
 ```bash
-python src/pipeline_part2.py output.csv --examples 10 20 30 --model random_forest --output my_similar_words.csv
+python src/pipeline_part2.py output.csv --examples 10 50 100 --train-size 500 --model random_forest --output my_similar_words.csv
 ```
 
-Find words similar to just one example:
+Find words similar to one example:
 ```bash
 python src/pipeline_part2.py output.csv --examples 42
 ```
